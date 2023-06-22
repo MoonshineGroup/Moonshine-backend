@@ -1,9 +1,12 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type User struct {
@@ -11,11 +14,36 @@ type User struct {
 	Password string `json:"password"`
 }
 
-var users []User
+var db *sql.DB
 
 func main() {
+	var err error
+	db, err = sql.Open("sqlite3", "c:/users/lizyu/Moonshine-backend/db/users.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	// 创建用户表
+	createTable()
+
 	http.HandleFunc("/register", registerHandler)
 	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func createTable() {
+	createTableSQL := `
+		CREATE TABLE IF NOT EXISTS users (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			username TEXT,
+			password TEXT
+		);
+	`
+
+	_, err := db.Exec(createTableSQL)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func registerHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,6 +59,15 @@ func registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users = append(users, user)
+	insertSQL := `
+		INSERT INTO users (username, password) VALUES (?, ?);
+	`
+
+	_, err = db.Exec(insertSQL, user.Username, user.Password)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusCreated)
 }
